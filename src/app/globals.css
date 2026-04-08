@@ -24,3 +24,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+.touch-auto {
+  -webkit-overflow-scrolling: touch; /* smooth scrolling */
+  touch-action: manipulation; /* allow taps */
+}
+button {
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+input, select, button {
+  touch-action: manipulation;
+}
