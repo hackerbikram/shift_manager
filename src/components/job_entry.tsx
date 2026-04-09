@@ -33,18 +33,28 @@ export default function JobEntry() {
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
+
     if (activeShift) {
       timer = setInterval(() => {
         const start = new Date(
           `2000-01-01T${customStartTime || activeShift.start_time}`
         );
+
         const now = new Date(
           `2000-01-01T${new Date().toTimeString().slice(0, 5)}`
         );
+
+        // midnight crossover fix
+        if (now < start) {
+          now.setDate(now.getDate() + 1);
+        }
+
         const diff = (now.getTime() - start.getTime()) / 60000;
-        setLiveMinutes(Math.floor(diff));
+
+        setLiveMinutes(Math.max(0, Math.floor(diff)));
       }, 1000);
     }
+
     return () => clearInterval(timer);
   }, [activeShift, customStartTime]);
 
@@ -54,7 +64,10 @@ export default function JobEntry() {
   }
 
   async function checkActiveShift() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) return;
 
     const { data } = await supabase
@@ -77,13 +90,20 @@ export default function JobEntry() {
     const startTime = customStartTime || now;
     const today = new Date().toISOString().split("T")[0];
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setMessage("⚠️ Login required");
+      return;
+    }
 
     const { data, error } = await supabase
       .from("work_shifts")
       .insert([
         {
-          user_id: user?.id,
+          user_id: user.id,
           job_id: Number(jobId),
           work_date: today,
           start_time: startTime,
@@ -111,10 +131,29 @@ export default function JobEntry() {
     const selectedJob = jobs.find((j) => j.id === activeShift.job_id);
     if (!selectedJob) return;
 
-    const start = new Date(`2000-01-01T${customStartTime || activeShift.start_time}`);
+    const start = new Date(
+      `2000-01-01T${customStartTime || activeShift.start_time}`
+    );
+
     const end = new Date(`2000-01-01T${endTime}`);
 
-    const totalMinutes = (end.getTime() - start.getTime()) / 60000 - breakMinutes;
+    // midnight crossover fix
+    if (end < start) {
+      end.setDate(end.getDate() + 1);
+    }
+
+    let totalMinutes =
+      (end.getTime() - start.getTime()) / 60000 - breakMinutes;
+
+    // prevent negative values
+    totalMinutes = Math.max(0, totalMinutes);
+
+    // prevent impossible break
+    if (breakMinutes > totalMinutes) {
+      setMessage("⚠️ Break exceeds work time");
+      return;
+    }
+
     const salary = (totalMinutes / 60) * selectedJob.hourly_rate;
 
     const { error } = await supabase
@@ -138,7 +177,10 @@ export default function JobEntry() {
     setCustomStartTime("");
     setCustomEndTime("");
     setBreakMinutes(0);
-    setMessage(`✅ Finished | ${Math.floor(totalMinutes)} min | ¥${salary.toFixed(0)}`);
+
+    setMessage(
+      `✅ Finished | ${Math.floor(totalMinutes)} min | ¥${salary.toFixed(0)}`
+    );
   }
 
   return (
@@ -161,7 +203,10 @@ export default function JobEntry() {
               ))}
             </select>
 
-            <label className="block text-sm opacity-70 mb-1">Optional Start Time</label>
+            <label className="block text-sm opacity-70 mb-1">
+              Optional Start Time
+            </label>
+
             <input
               type="time"
               value={customStartTime}
@@ -174,11 +219,15 @@ export default function JobEntry() {
         {activeShift && (
           <div className="text-center mb-6">
             <div className="text-5xl font-bold">{liveMinutes} min</div>
+
             <div className="text-sm opacity-70 mt-2">
               Started at {customStartTime || activeShift.start_time}
             </div>
 
-            <label className="block text-sm opacity-70 mt-4 mb-1">Optional End Time</label>
+            <label className="block text-sm opacity-70 mt-4 mb-1">
+              Optional End Time
+            </label>
+
             <input
               type="time"
               value={customEndTime}
@@ -186,7 +235,10 @@ export default function JobEntry() {
               className="w-full p-3 rounded-2xl bg-white/10 mb-4"
             />
 
-            <label className="block text-sm opacity-70 mt-4 mb-1">Break Time (minutes)</label>
+            <label className="block text-sm opacity-70 mt-4 mb-1">
+              Break Time (minutes)
+            </label>
+
             <input
               type="number"
               min={0}
@@ -213,9 +265,7 @@ export default function JobEntry() {
           </button>
         )}
 
-        {message && (
-          <div className="mt-5 text-center text-sm">{message}</div>
-        )}
+        {message && <div className="mt-5 text-center text-sm">{message}</div>}
       </div>
     </div>
   );
