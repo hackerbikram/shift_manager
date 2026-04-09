@@ -131,9 +131,7 @@ export default function JobEntry() {
     const selectedJob = jobs.find((j) => j.id === activeShift.job_id);
     if (!selectedJob) return;
 
-    const start = new Date(
-      `2000-01-01T${customStartTime || activeShift.start_time}`
-    );
+    const start = new Date(`2000-01-01T${activeShift.start_time}`);
 
     const end = new Date(`2000-01-01T${endTime}`);
 
@@ -221,7 +219,7 @@ export default function JobEntry() {
             <div className="text-5xl font-bold">{liveMinutes} min</div>
 
             <div className="text-sm opacity-70 mt-2">
-              Started at {customStartTime || activeShift.start_time}
+              Started at {activeShift.start_time}
             </div>
 
             <label className="block text-sm opacity-70 mt-4 mb-1">
