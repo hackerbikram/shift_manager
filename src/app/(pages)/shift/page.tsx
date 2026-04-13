@@ -1,20 +1,16 @@
 'use client'
-import Schedulercreater from "@/components/shift_components/shift_create";
-import  ShiftCalendar  from '@/components/shift_components/shift_calander';
+import { Button } from '@/components/ui/button';
+import {Plus ,Clock} from "lucide-react"
+import { useState } from "react";
+import SubjectCreateForm from "@/components/shift_components/subject_create_form";
+import CreateShift from '@/components/shift_components/create-shift';
+
+type activePage = "createShift" | "addSubject" | "updateShift"
 export default function ShiftPage(){
+  const [activePage,setActivePage] = useState<activePage | null>(null);
   return (
     <div className="p-5 justify-center flex gap-5 m-5">
-      <div>
-        <button
-        className="bg-green-400 rounded-xl p-4 text-black"
-        >
-          Create shift 
-          </button>
-          <button
-          className="bg-green-400 rounded-xl p-4"
-          > add new subject
-          </button>
-      </div>
+      <CreateShift />
     </div>
   )
 }

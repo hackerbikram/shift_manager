@@ -1,16 +1,22 @@
-'use client';
+"use client";
 
 import { supabase } from "@/lib/supabase";
 import type { Subject } from "@/types/subject";
 import { useEffect, useState } from "react";
 
-
 type Props = {
   onCreated?: () => void;
+  onUpdated?: () => void;
+  initialData?: Subject | null;
+  mode?: "create" | "edit";
 };
 
-
-export default function SubjectCreateForm({ onCreated }:Props) {
+export default function SubjectCreateForm({
+  onCreated,
+  onUpdated,
+  initialData,
+  mode = "create",
+}: Props) {
   const [userId, setUserId] = useState("");
   const [message, setMessage] = useState("");
 
@@ -23,9 +29,17 @@ export default function SubjectCreateForm({ onCreated }:Props) {
     duration_minutes: 50,
   });
 
+  // 🔐 Load user
   useEffect(() => {
     loadUser();
   }, []);
+
+  // ✏️ If edit mode → load initial data
+  useEffect(() => {
+    if (initialData) {
+      setSubject(initialData);
+    }
+  }, [initialData]);
 
   async function loadUser() {
     const {
@@ -43,7 +57,7 @@ export default function SubjectCreateForm({ onCreated }:Props) {
   }
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement>
   ) => {
     const { name, value } = e.target;
 
@@ -56,7 +70,8 @@ export default function SubjectCreateForm({ onCreated }:Props) {
     }));
   };
 
-  async function createSubject(e: React.FormEvent) {
+  // 🚀 SUBMIT HANDLER (CREATE + UPDATE)
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     if (!subject.name || !userId) {
@@ -64,33 +79,59 @@ export default function SubjectCreateForm({ onCreated }:Props) {
       return;
     }
 
-    const { error } = await supabase.from("subjects").insert({
-      ...subject,
-      user_id: userId,
-    });
+    if (mode === "create") {
+      const { error } = await supabase.from("subjects").insert({
+        ...subject,
+        user_id: userId,
+      });
 
-    if (error) {
-      setMessage(error.message);
-      return;
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+
+      setMessage("Subject created ✅");
+      onCreated && onCreated();
     }
 
-    setMessage("Subject created ✅");
-    if (onCreated) onCreated();
+    if (mode === "edit" && subject.id) {
+      const { error } = await supabase
+        .from("subjects")
+        .update({
+          name: subject.name,
+          teacher: subject.teacher,
+          room: subject.room,
+          color: subject.color,
+          duration_minutes: subject.duration_minutes,
+        })
+        .eq("id", subject.id);
 
-    setSubject({
-      user_id: userId,
-      name: "",
-      teacher: "",
-      room: "",
-      color: "#6366f1",
-      duration_minutes: 50,
-    });
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+
+      setMessage("Subject updated ✏️");
+      onUpdated && onUpdated();
+    }
+
+    // reset only in create mode
+    if (mode === "create") {
+      setSubject({
+        user_id: userId,
+        name: "",
+        teacher: "",
+        room: "",
+        color: "#6366f1",
+        duration_minutes: 50,
+      });
+    }
   }
 
   return (
     <div className="w-full max-w-md mx-auto p-4 rounded-2xl bg-zinc-900 border border-white/10 text-white">
 
-      <form onSubmit={createSubject} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
 
         <input
           type="text"
@@ -137,9 +178,13 @@ export default function SubjectCreateForm({ onCreated }:Props) {
 
         <button
           type="submit"
-          className="w-full p-3 rounded-xl bg-emerald-500 font-semibold"
+          className={`w-full p-3 rounded-xl font-semibold ${
+            mode === "edit"
+              ? "bg-blue-500"
+              : "bg-emerald-500"
+          }`}
         >
-          Save Subject
+          {mode === "edit" ? "Update Subject" : "Save Subject"}
         </button>
 
         {message && (
