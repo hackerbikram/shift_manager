@@ -170,7 +170,7 @@ export default function Subjectpage() {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => handleDelete(s.id)}
+                      onClick={() => s.id && handleDelete(s.id)}
                     >
                       Delete
                     </Button>

@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState, useEffect } from "react"
 import type { UniversalShift } from "@/types/shift-type"
@@ -7,99 +7,68 @@ type Props = {
   shifts: UniversalShift[]
   draftShift?: UniversalShift | null
   onAdd: (shift: UniversalShift) => void
+  onDelete?: (id: string) => void
+  onUpdate?: (shift: UniversalShift) => void
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 
-export default function TimelineDay({ shifts, onAdd }: Props) {
+export default function TimelineDay({
+  shifts,
+  onAdd,
+  draftShift,
+  onDelete,
+  onUpdate
+}: Props) {
+
   const [dragStart, setDragStart] = useState<number | null>(null)
   const [dragEnd, setDragEnd] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
 
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState("")
+
   const pxPerHour = 60
 
-  // ✅ Start drag
-  const handleMouseDown = (hour: number) => {
-    setIsDragging(true)
-    setDragStart(hour)
-    setDragEnd(hour)
-  }
+  // drag logic same...
 
-  // ✅ Update drag
-  const handleMouseEnter = (hour: number) => {
-    if (!isDragging) return
-    setDragEnd(hour)
-  }
-
-  // ✅ End drag
-  const handleMouseUp = () => {
-    if (!isDragging) return
-
-    setIsDragging(false)
-
-    // ❗ Ignore single click
-    if (dragStart === dragEnd) {
-      setDragStart(null)
-      setDragEnd(null)
-      return
-    }
-  }
-
-  // ✅ Global mouse up (important)
   useEffect(() => {
     const handleGlobalMouseUp = () => {
       if (isDragging) setIsDragging(false)
     }
-
     window.addEventListener("mouseup", handleGlobalMouseUp)
     return () => window.removeEventListener("mouseup", handleGlobalMouseUp)
   }, [isDragging])
 
-  // ✅ ESC cancel
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setDragStart(null)
-        setDragEnd(null)
-        setIsDragging(false)
-      }
-    }
-
-    window.addEventListener("keydown", handleKey)
-    return () => window.removeEventListener("keydown", handleKey)
-  }, [])
+  const sortedShifts = [...shifts].sort((a, b) =>
+    a.start.localeCompare(b.start)
+  )
 
   return (
     <div className="space-y-2">
 
-      {/* ⏰ Timeline */}
       <div className="relative border border-white/10 rounded-xl overflow-hidden">
 
         {HOURS.map((h) => (
           <div
             key={h}
-            onMouseDown={() => handleMouseDown(h)}
-            onMouseEnter={() => handleMouseEnter(h)}
-            onMouseUp={handleMouseUp}
-            className="h-[60px] border-b border-white/10 flex items-start text-xs text-gray-400 pl-2 cursor-pointer hover:bg-white/5"
+            onMouseDown={() => {
+              setIsDragging(true)
+              setDragStart(h)
+              setDragEnd(h)
+            }}
+            onMouseEnter={() => {
+              if (isDragging) setDragEnd(h)
+            }}
+            onMouseUp={() => setIsDragging(false)}
+            className="h-[60px] border-b border-white/10 text-xs pl-2 cursor-pointer"
           >
             {String(h).padStart(2, "0")}:00
           </div>
         ))}
 
-        {/* 🎯 Drag Preview */}
-        {dragStart !== null && dragEnd !== null && (
-          <div
-            className="absolute left-0 right-0 bg-blue-500/40 border border-blue-400 rounded pointer-events-none"
-            style={{
-              top: Math.min(dragStart, dragEnd) * pxPerHour,
-              height: (Math.abs(dragEnd - dragStart) + 1) * pxPerHour,
-            }}
-          />
-        )}
-
-        {/* 📦 Existing shifts */}
-        {shifts.map((s) => {
+        {/* shifts */}
+        {sortedShifts.map((s) => {
           const startHour = parseInt(s.start.split(":")[0])
           const endHour = parseInt(s.end.split(":")[0])
 
@@ -113,49 +82,90 @@ export default function TimelineDay({ shifts, onAdd }: Props) {
                 backgroundColor: s.color,
               }}
             >
-              {s.title}
-              <br />
-              {s.start} - {s.end}
+              {editingId === s.id ? (
+                <>
+                  <input
+                    value={editTitle}
+                    onChange={(e)=>setEditTitle(e.target.value)}
+                    className="text-black w-full"
+                  />
+
+                  <div className="flex gap-1 mt-1">
+                    <button
+                      onClick={() => {
+                        onUpdate?.({ ...s, title: editTitle })
+                        setEditingId(null)
+                      }}
+                      className="bg-green-500 px-2 rounded"
+                    >
+                      ✔
+                    </button>
+
+                    <button
+                      onClick={() => setEditingId(null)}
+                      className="bg-gray-500 px-2 rounded"
+                    >
+                      ✖
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>{s.title}</div>
+                  <div className="text-[10px]">{s.start}-{s.end}</div>
+
+                  <div className="flex gap-1 mt-1">
+                    <button
+                      onClick={() => {
+                        setEditingId(s.id!)
+                        setEditTitle(s.title)
+                      }}
+                      className="bg-blue-500 px-2 rounded"
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={() => onDelete?.(s.id!)}
+                      className="bg-red-500 px-2 rounded"
+                    >
+                      Del
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )
         })}
       </div>
 
-      {/* ✅ Confirm / Cancel OUTSIDE timeline */}
+      {/* confirm add */}
       {dragStart !== null && dragEnd !== null && dragStart !== dragEnd && (
-        <div className="flex gap-2">
-          <button
-            className="px-3 py-1 bg-green-500 rounded"
-            onClick={() => {
-              const start = Math.min(dragStart, dragEnd)
-              const end = Math.max(dragStart, dragEnd) + 1
+        <button
+          className="bg-green-500 px-3 py-1 rounded"
+          onClick={() => {
+            const start = Math.min(dragStart, dragEnd)
+            const end = Math.max(dragStart, dragEnd) + 1
 
-              onAdd({
-                id: crypto.randomUUID(),
-                type: "event",
-                title: "New Shift",
-                start: `${String(start).padStart(2, "0")}:00`,
-                end: `${String(end).padStart(2, "0")}:00`,
-                color: "#3b82f6",
-              })
+            const base = draftShift ?? {
+              type: "event",
+              title: "New Shift",
+              color: "#3b82f6",
+            }
 
-              setDragStart(null)
-              setDragEnd(null)
-            }}
-          >
-            Confirm
-          </button>
+            onAdd({
+              id: crypto.randomUUID(),
+              ...base,
+              start: `${String(start).padStart(2, "0")}:00`,
+              end: `${String(end).padStart(2, "0")}:00`,
+            })
 
-          <button
-            className="px-3 py-1 bg-red-500 rounded"
-            onClick={() => {
-              setDragStart(null)
-              setDragEnd(null)
-            }}
-          >
-            Cancel
-          </button>
-        </div>
+            setDragStart(null)
+            setDragEnd(null)
+          }}
+        >
+          Confirm
+        </button>
       )}
     </div>
   )

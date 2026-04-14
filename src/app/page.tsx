@@ -3,6 +3,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
+import LiveShiftViewer from "@/components/shift_components/live_shift_view";
 
 export default function Home() {
   const [username, setUsername] = useState("Login Please!");
@@ -44,6 +45,9 @@ export default function Home() {
         <h1 className="text-2xl font-bold">
           Welcome, {username} 👋
         </h1>
+          <div>
+            <LiveShiftViewer />
+          </div>
       </main>
     </div>
   );

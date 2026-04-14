@@ -1,10 +1,10 @@
-'use client'
+"use client"
 
 import { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabase"
 import { Input } from "../ui/input"
 import { Button } from "../ui/button"
-import {SaveIcon} from "lucide-react"
+import { SaveIcon } from "lucide-react"
 import type { UniversalShift, WeeklyTemplate } from "@/types/shift-type"
 import TimelineDay from "@/components/shift_components/timelineday"
 
@@ -39,7 +39,15 @@ export default function CreateShift() {
     color: "#3b82f6",
   })
 
-  // ✅ Load user
+  // ✅ sync form → draftShift
+  useEffect(() => {
+    setDraftShift({
+      ...form,
+      id: crypto.randomUUID(),
+    })
+  }, [form])
+
+  // 🔐 Load user
   useEffect(() => {
     const loadUser = async () => {
       const { data } = await supabase.auth.getUser()
@@ -48,7 +56,7 @@ export default function CreateShift() {
     loadUser()
   }, [])
 
-  // ✅ Load subjects + jobs
+  // 📦 Load subjects + jobs
   useEffect(() => {
     if (!userId) return
 
@@ -63,43 +71,22 @@ export default function CreateShift() {
     loadData()
   }, [userId])
 
-const  saveSchedule= async(schedule: WeeklyTemplate) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  // 💾 SAVE
+  const saveSchedule = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
 
-  const { error } = await supabase
-    .from("schedules")
-    .upsert(
-      {
-        user_id: user.id,
-        schedule_json: schedule,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" }
-    );
+    const { error } = await supabase.from("schedules").upsert({
+      user_id: user.id,
+      schedule_json: weekShift,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" })
 
-  if (error) console.error(error.message);
-}
-
-const loadSchedule = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data, error } = await supabase
-    .from("schedules")
-    .select("schedule_json")
-    .eq("user_id", user.id)
-    .single();
-
-  if (error) {
-    console.error(error.message);
-    return null;
+    if (error) console.error(error.message)
+    else alert("Saved ✅")
   }
 
-  return data?.schedule_json;
-}
-
-  // ✅ Add shift to selected day
+  // ➕ Add shift (manual button)
   const addShift = () => {
     if (!form.title) return
 
@@ -108,20 +95,23 @@ const loadSchedule = async () => {
       id: crypto.randomUUID(),
     }
 
-    setWeekShift(prev => ({
-      ...prev,
-      [selectedDay]: [...prev[selectedDay], newShift]
-        .sort((a,b)=>a.start.localeCompare(b.start)) // auto sort
-    }))
+    setWeekShift(prev => {
+      const current = prev[selectedDay]
 
-    // reset form
-    setForm({
-      id: "",
-      type: "subject",
-      title: "",
-      start: "09:00",
-      end: "10:00",
-      color: "#3b82f6",
+      // ❌ prevent duplicate same time + title
+      const exists = current.some(
+        s => s.start === newShift.start && s.title === newShift.title
+      )
+      if (exists) {
+        alert("Duplicate shift ❌")
+        return prev
+      }
+
+      return {
+        ...prev,
+        [selectedDay]: [...current, newShift]
+          .sort((a,b)=>a.start.localeCompare(b.start))
+      }
     })
   }
 
@@ -143,10 +133,10 @@ const loadSchedule = async () => {
         ))}
       </div>
 
-      {/* 🎯 Type Selector */}
+      {/* 🎯 Type */}
       <select
         value={form.type}
-        onChange={(e)=>setForm({...form, type:e.target.value as any})}
+        onChange={(e)=>setForm({...form, type:e.target.value as any, title:""})}
         className="w-full p-2 rounded bg-white/10"
       >
         <option value="subject">Subject</option>
@@ -155,7 +145,7 @@ const loadSchedule = async () => {
         <option value="break">Break</option>
       </select>
 
-      {/* 🎓 Subject / Job Selector */}
+      {/* 🎓 Subject */}
       {form.type === "subject" && (
         <select
           onChange={(e)=>{
@@ -171,6 +161,7 @@ const loadSchedule = async () => {
         </select>
       )}
 
+      {/* 💼 Job */}
       {form.type === "job" && (
         <select
           onChange={(e)=>{
@@ -186,6 +177,15 @@ const loadSchedule = async () => {
         </select>
       )}
 
+      {/* 🟡 BREAK FIX */}
+      {form.type === "break" && (
+        <Input
+          placeholder="Break name (Lunch, Rest...)"
+          value={form.title}
+          onChange={(e)=>setForm({...form, title:e.target.value, color:"#f59e0b"})}
+        />
+      )}
+
       {/* ⏰ Time */}
       <div className="flex gap-2">
         <Input type="time" value={form.start}
@@ -194,32 +194,55 @@ const loadSchedule = async () => {
           onChange={(e)=>setForm({...form, end:e.target.value})}/>
       </div>
 
-      {/* ➕ Add */}
       <Button onClick={addShift} className="w-full">
         Add Shift
       </Button>
 
-      {/* 📋 Preview */}
-      <div className="space-y-2">
-        <TimelineDay
+      {/* 📋 Timeline */}
+      <TimelineDay
         draftShift={draftShift}
-  shifts={weekShift[selectedDay]}
-  onAdd={(shift) => {
-    setWeekShift(prev => ({
-      ...prev,
-      [selectedDay]: [...prev[selectedDay], shift]
-    }))
-  }}
-/>
-      </div>
-      <div>
-        {weekShift && (
-            <Button variant={"default"} className="border-2 rounded-xl border-white hover: bg-white hover text-black hover border-black">
-                {<SaveIcon />}
-                Save Shift
-                </Button>
-        )}
-      </div>
+        shifts={weekShift[selectedDay]}
+
+        onAdd={(shift) => {
+          setWeekShift(prev => {
+            const current = prev[selectedDay]
+
+            const exists = current.some(
+              s => s.start === shift.start && s.title === shift.title
+            )
+            if (exists) return prev
+
+            return {
+              ...prev,
+              [selectedDay]: [...current, shift]
+                .sort((a,b)=>a.start.localeCompare(b.start))
+            }
+          })
+        }}
+
+        // 🗑 DELETE
+        onDelete={(id) => {
+          setWeekShift(prev => ({
+            ...prev,
+            [selectedDay]: prev[selectedDay].filter(s => s.id !== id)
+          }))
+        }}
+
+        // ✏️ UPDATE
+        onUpdate={(updated) => {
+          setWeekShift(prev => ({
+            ...prev,
+            [selectedDay]: prev[selectedDay].map(s =>
+              s.id === updated.id ? updated : s
+            )
+          }))
+        }}
+      />
+
+      {/* 💾 SAVE */}
+      <Button onClick={saveSchedule} className="w-full">
+        <SaveIcon /> Save Shift
+      </Button>
 
     </div>
   )
