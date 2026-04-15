@@ -10,6 +10,10 @@ const router = useRouter();
   const [username, setUserName] = useState("");
   const [password, setPassword] = useState("");
 
+  const [confirmPassword, setConfirmPassword] = useState("");
+const [showPassword, setShowPassword] = useState(false);
+const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
@@ -20,6 +24,18 @@ const router = useRouter();
       setIsError(true);
       return;
     }
+
+    if (password.length < 6) {
+  setMessage("Password must be at least 6 characters");
+  setIsError(true);
+  return;
+}
+
+if (password !== confirmPassword) {
+  setMessage("Passwords do not match");
+  setIsError(true);
+  return;
+}
 
     setLoading(true);
     setMessage("");
@@ -104,14 +120,44 @@ const router = useRouter();
             onChange={(e) => setUserName(e.target.value)}
           />
 
-          <input
-            type="password"
-            placeholder="Password"
-            className="w-full p-4 rounded-2xl bg-white/50 border border-black/20 outline-none focus:ring-2 focus:ring-black/20"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && signUp()}
-          />
+         {/* Password */}
+<div className="relative">
+  <input
+    type={showPassword ? "text" : "password"}
+    placeholder="Password"
+    className="w-full p-4 rounded-2xl bg-white/50 border border-black/20 outline-none focus:ring-2 focus:ring-black/20 pr-12"
+    value={password}
+    onChange={(e) => setPassword(e.target.value)}
+  />
+
+  <button
+    type="button"
+    onClick={() => setShowPassword(!showPassword)}
+    className="absolute right-3 top-1/2 -translate-y-1/2 text-sm opacity-70"
+  >
+    {showPassword ? "🙈" : "👁️"}
+  </button>
+</div>
+
+{/* Confirm Password */}
+<div className="relative">
+  <input
+    type={showConfirmPassword ? "text" : "password"}
+    placeholder="Confirm Password"
+    className="w-full p-4 rounded-2xl bg-white/50 border border-black/20 outline-none focus:ring-2 focus:ring-black/20 pr-12"
+    value={confirmPassword}
+    onChange={(e) => setConfirmPassword(e.target.value)}
+    onKeyDown={(e) => e.key === "Enter" && signUp()}
+  />
+
+  <button
+    type="button"
+    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+    className="absolute right-3 top-1/2 -translate-y-1/2 text-sm opacity-70"
+  >
+    {showConfirmPassword ? "🙈" : "👁️"}
+  </button>
+</div>
 
           <button
             onClick={signUp}
@@ -130,6 +176,13 @@ const router = useRouter();
               {message}
             </div>
           )}
+          {confirmPassword && (
+  <p className={`text-xs mt-1 ${
+    password === confirmPassword ? "text-green-600" : "text-red-500"
+  }`}>
+    {password === confirmPassword ? "Passwords match ✔" : "Passwords do not match"}
+  </p>
+)}
         </div>
       </div>
     </div>

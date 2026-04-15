@@ -31,10 +31,83 @@ export default function MonthlyWork() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [monthFilter, setMonthFilter] = useState<"this" | "prev" | "custom">("this");
   const [customMonth, setCustomMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editData, setEditData] = useState<Partial<Shift>>({});
 
   useEffect(() => {
     loadJobs();
   }, []);
+
+  function calculateShift(data: Partial<Shift>, job: Job | null) {
+  if (!data.start_time || !data.end_time || !job) return data;
+
+  const start = new Date(`1970-01-01T${data.start_time}`);
+  const end = new Date(`1970-01-01T${data.end_time}`);
+
+  let minutes = (end.getTime() - start.getTime()) / 60000;
+
+  if (minutes < 0) minutes += 1440; // overnight shift
+
+  const breakMin = data.break_minutes || 0;
+  const worked = Math.max(0, minutes - breakMin);
+  const salary = (worked / 60) * job.hourly_rate;
+
+  return {
+    ...data,
+    worked_minutes: Math.round(worked),
+    daily_salary: Math.round(salary),
+  };
+}
+
+function startEdit(shift: Shift) {
+  setEditingId(shift.id);
+  setEditData({ ...shift });
+}
+
+async function saveEdit() {
+  if (!editingId) return;
+
+  const job = jobs.find(j => j.id === editData.jobs?.id) || null;
+  const calculated = calculateShift(editData, job);
+
+  const { error } = await supabase
+    .from("work_shifts")
+    .update({
+      work_date: calculated.work_date,
+      start_time: calculated.start_time,
+      end_time: calculated.end_time,
+      break_minutes: calculated.break_minutes,
+      worked_minutes: calculated.worked_minutes,
+      daily_salary: calculated.daily_salary,
+    })
+    .eq("id", editingId);
+
+  if (error) {
+    console.log(error);
+    return;
+  }
+
+  setEditingId(null);
+  setEditData({});
+  await loadMonthlyWork(); // 🔥 ensures totals update
+}
+
+useEffect(() => {
+  if (!editingId) return;
+
+  const job = jobs.find(j => j.id === editData.jobs?.id) || null;
+  const updated = calculateShift(editData, job);
+
+  setEditData(prev => ({
+    ...prev,
+    worked_minutes: updated.worked_minutes,
+    daily_salary: updated.daily_salary,
+  }));
+}, [
+  editData.start_time,
+  editData.end_time,
+  editData.break_minutes
+]);
 
   useEffect(() => {
     setSelectedJob(jobId ? jobs.find(j => j.id === Number(jobId)) || null : null);
@@ -172,31 +245,125 @@ export default function MonthlyWork() {
           </div>
         </div>
 
-        {/* Shift List */}
         <div className="space-y-4">
-          {shifts.length === 0 ? (
-            <div className="text-center opacity-60 py-10">No work records found</div>
+  {shifts.length === 0 ? (
+    <div className="text-center opacity-60 py-10">No work records found</div>
+  ) : (
+    shifts.map((shift) => {
+      const isEditing = editingId === shift.id;
+
+      return (
+        <div
+          key={shift.id}
+          className="rounded-2xl bg-white/5 p-4 border border-white/10"
+        >
+          {isEditing ? (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="date"
+                  value={editData.work_date || ""}
+                  onChange={(e) =>
+                    setEditData({ ...editData, work_date: e.target.value })
+                  }
+                  className="p-2 rounded bg-white/10"
+                />
+
+                <input
+                  type="number"
+                  placeholder="Break (min)"
+                  value={editData.break_minutes || 0}
+                  onChange={(e) =>
+                    setEditData({
+                      ...editData,
+                      break_minutes: Number(e.target.value),
+                    })
+                  }
+                  className="p-2 rounded bg-white/10"
+                />
+
+                <input
+                  type="time"
+                  value={editData.start_time || ""}
+                  onChange={(e) =>
+                    setEditData({ ...editData, start_time: e.target.value })
+                  }
+                  className="p-2 rounded bg-white/10"
+                />
+
+                <input
+                  type="time"
+                  value={editData.end_time || ""}
+                  onChange={(e) =>
+                    setEditData({ ...editData, end_time: e.target.value })
+                  }
+                  className="p-2 rounded bg-white/10"
+                />
+              </div>
+
+              {/* 🔥 Live Preview */}
+              <div className="mt-3 text-sm opacity-80">
+                Worked: {editData.worked_minutes || 0} min | Salary: ¥
+                {editData.daily_salary || 0}
+              </div>
+
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={saveEdit}
+                  disabled={!editData.start_time || !editData.end_time}
+                  className="bg-green-500 px-3 py-1 rounded disabled:opacity-50"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingId(null);
+                    setEditData({});
+                  }}
+                  className="bg-red-500 px-3 py-1 rounded"
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
           ) : (
-            shifts.map(shift => (
-              <div key={shift.id} className="rounded-2xl bg-white/5 p-4 border border-white/10">
-                <div className="flex justify-between">
-                  <div>
-                    <div className="font-semibold">{shift.jobs?.job_name || "Unknown Job"}</div>
-                    <div className="text-sm opacity-70">{shift.work_date}</div>
+            <>
+              <div className="flex justify-between">
+                <div>
+                  <div className="font-semibold">
+                    {shift.jobs?.job_name || "Unknown Job"}
                   </div>
-                  <div className="text-right">
-                    <div>{shift.start_time} → {shift.end_time || "--:--"}</div>
-                    <div className="text-sm opacity-70">{shift.worked_minutes || 0} min</div>
-                  </div>
+                  <div className="text-sm opacity-70">{shift.work_date}</div>
                 </div>
-                <div className="mt-2 text-sm opacity-80">
-                  Break: {shift.break_minutes || 0} min | Salary: ¥{shift.daily_salary || 0}
+                <div className="text-right">
+                  <div>
+                    {shift.start_time} → {shift.end_time || "--:--"}
+                  </div>
+                  <div className="text-sm opacity-70">
+                    {shift.worked_minutes || 0} min
+                  </div>
                 </div>
               </div>
-            ))
+
+              <div className="mt-2 text-sm opacity-80">
+                Break: {shift.break_minutes || 0} min | Salary: ¥
+                {shift.daily_salary || 0}
+              </div>
+
+              <button
+                onClick={() => startEdit(shift)}
+                className="mt-2 bg-blue-500 px-3 py-1 rounded"
+              >
+                Edit
+              </button>
+            </>
           )}
         </div>
+      );
+    })
+  )}
+</div>
+        </div>
       </div>
-    </div>
   );
 }
